@@ -8,17 +8,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getMetadata } from './helpers/metadata-helpers.js';
-import DiscordHelper from './helpers/discord-helper.js';
-import TwitterHelper from './helpers/twitter-helper.js';
-import _ from 'lodash';
 import axios from 'axios';
 import fs from 'fs';
+import _ from 'lodash';
+import DiscordHelper from './helpers/discord-helper.js';
+import { getMetadata } from './helpers/metadata-helpers.js';
+import TwitterHelper from './helpers/twitter-helper.js';
 export default class SaleTracker {
     constructor(config, outputType) {
         this.config = config;
         this.connection = new Connection(this.config.rpc);
         this.auditFilePath = `./auditfile-${outputType}.json`;
+        this.airdropFilePath = `./airdrop-${outputType}.json`;
         this.outputType = outputType;
     }
     /**
@@ -41,6 +42,7 @@ export default class SaleTracker {
                     yield me._getOutputPlugin().send(saleInfo);
                 }
                 yield me._updateLockFile(confirmedSignature.signature);
+                yield me._updateAirdropFile(saleInfo);
                 console.log("Updated lockfile", confirmedSignature.signature);
             }
             console.log("Done");
@@ -77,6 +79,13 @@ export default class SaleTracker {
             processedSignatures: []
         });
     }
+
+    _getNewAirdropFileStructure() {
+        return JSON.stringify({
+            airdrops: []
+        });
+    }
+
     /**
      * Returns the auditfile if it exists, if not createss a new empty one.
      * @returns The contents of the auditfile.
@@ -91,6 +100,17 @@ export default class SaleTracker {
             return JSON.parse(fs.readFileSync(me.auditFilePath).toString());
         }
     }
+    _readOrCreateAirdropFile() {
+        const me = this;
+        if (fs.existsSync(me.airdropFilePath)) {
+            return JSON.parse(fs.readFileSync(me.airdropFilePath).toString());
+        }
+        else {
+            fs.writeFileSync(me.airdropFilePath, me._getNewAirdropFileStructure());
+            return JSON.parse(fs.readFileSync(me.airdropFilePath).toString());
+        }
+    }
+
     /**
      * Keeping it simple. Using a file to track processed signatures. Routinely trimming
      * signatures from the file to keep size in check.
@@ -108,6 +128,25 @@ export default class SaleTracker {
             yield fs.writeFileSync(me.auditFilePath, JSON.stringify(file));
         });
     }
+
+    _updateAirdropFile(saleInfo) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const me = this;
+            let file = me._readOrCreateAirdropFile();
+            file.airdrops.push({
+                type: "buyer",
+                wallet: saleInfo.buyer,
+                airdropAmount: 1
+            });
+            file.airdrops.push({
+                type: "seller",
+                wallet: saleInfo.seller,
+                airdropAmount: 3 * saleInfo.saleAmount
+            });
+            yield fs.writeFileSync(me.airdropFilePath, JSON.stringify(file));
+        });
+    }
+
     /**
      * Gets the mint metadata using the metaplex helper classes.
      * @param mintInfo
