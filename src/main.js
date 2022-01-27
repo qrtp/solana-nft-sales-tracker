@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import axios from 'axios';
 import fs from 'fs';
 import _ from 'lodash';
@@ -17,7 +17,6 @@ import TwitterHelper from './helpers/twitter-helper.js';
 export default class SaleTracker {
     constructor(config, outputType) {
         this.config = config;
-        this.connection = new Connection(this.config.rpc);
         this.auditFilePath = `./auditfile-${outputType}.json`;
         this.airdropFilePath = `./airdrop-${outputType}.json`;
         this.outputType = outputType;
@@ -30,24 +29,26 @@ export default class SaleTracker {
             const me = this;
             let lockFile = me._readOrCreateAuditFile();
             let lastProcessedSignature = _.last(lockFile.processedSignatures);
-            console.log("Started");
-            const confirmedSignatures = _.reverse(yield this.connection.getConfirmedSignaturesForAddress2(new PublicKey(me.config.primaryRoyaltiesAccount), { limit: 25, until: lastProcessedSignature }));
-            _.remove(confirmedSignatures, (tx) => {
-                return _.includes(lockFile.processedSignatures, tx.signature);
+            console.log("Starting transaction processing at signature: " + lastProcessedSignature);
+            let txs = _.reverse(yield me._getHistory(me.config.primaryRoyaltiesAccount, lastProcessedSignature))
+            _.remove(txs, tx => {
+                return _.includes(lockFile.processedSignatures, tx);
             });
-            console.log("Got transactions", confirmedSignatures.length);
-            for (let confirmedSignature of confirmedSignatures) {
-                let saleInfo = yield me._parseTransactionForSaleInfo(confirmedSignature.signature);
+            console.log("Got transactions", txs.length);
+            for (let tx of txs) {
+                let saleInfo = yield me._parseTransactionForSaleInfo(tx);
                 if (saleInfo) {
                     yield me._getOutputPlugin().send(saleInfo);
+                    yield me._updateAirdropFile(saleInfo);
                 }
-                yield me._updateLockFile(confirmedSignature.signature);
-                yield me._updateAirdropFile(saleInfo);
-                console.log("Updated lockfile", confirmedSignature.signature);
+                yield me._updateLockFile(tx);
             }
             console.log("Done");
         });
     }
+
+
+
     /**
      * A basic factory to return the output plugin.
      * @returns
@@ -198,6 +199,101 @@ export default class SaleTracker {
         return _.includes(creators, me.config.primaryRoyaltiesAccount) && updateAuthority === me.config.updateAuthority;
     }
     /**
+     * Get wallet history until given transaction signature is reached.
+     * @param pk - Wallet public key
+     * @param untilSignature - Optional end signature
+     * @returns
+     */
+    _getHistory(pk, untilSignature) {
+        const me = this;
+        let maxCount = 5000
+        if (untilSignature == "" || !untilSignature) {
+            if (me.config.defaultUntilSignature != "") {
+                untilSignature = me.config.defaultUntilSignature
+            }
+        }
+        if (untilSignature == "" || !untilSignature) {
+            console.log("no end signagure is set, defaulting max tx to 25")
+            maxCount = 25
+        } else {
+            console.log("getting history until tx", untilSignature)
+        }
+        return __awaiter(this, void 0, void 0, function* () {
+            let txs = []
+            let baseURL = 'https://public-api.solscan.io/account/transactions?limit=50&account=' + pk
+            while (txs.length < maxCount) {
+                let url = baseURL
+                if (txs.length > 0) {
+                    url = url + "&beforeHash=" + txs[txs.length - 1]
+                }
+                console.log("Calling", url)
+                try {
+                    let res = yield axios.get(url)
+                    for (let tx of res.data) {
+                        if (tx.txHash == untilSignature) {
+                            return txs
+                        }
+                        txs.push(tx.txHash)
+                        if (txs.length == maxCount) {
+                            break
+                        }
+                    }
+                } catch (e) {
+                    console.log("error getting txs", e)
+                }
+            }
+            return txs
+        });
+    }
+    /**
+     * Get a transaction in the expected format.
+     * @param signature - Transaction signature to retrieve
+     * @returns
+     */
+    _getTransaction(signature) {
+        const me = this;
+        return __awaiter(this, void 0, void 0, function* () {
+            let tx = {
+                "transaction": {
+                    "message": {
+                        "accountKeys": []
+                    }
+                },
+                "meta": {
+                    "preTokenBalances": [],
+                    "postTokenBalances": [],
+                    "preBalances": [],
+                    "postBalances": []
+                }
+            }
+            let url = 'https://public-api.solscan.io/transaction/' + signature
+            console.log("Calling", url)
+            try {
+                let res = yield axios.get(url)
+                for (let acct of res.data.inputAccount) {
+                    tx["transaction"]["message"]["accountKeys"].push(acct.account)
+                    tx["meta"]["preBalances"].push(acct.preBalance)
+                    tx["meta"]["postBalances"].push(acct.postBalance)
+                }
+                for (let bal of res.data.tokenBalanes) {
+                    tx["meta"]["preTokenBalances"].push({
+                        "mint": bal.token.tokenAddress,
+                        "amount": bal.amount.preAmount
+                    })
+                    tx["meta"]["postTokenBalances"].push({
+                        "mint": bal.token.tokenAddress,
+                        "amount": bal.amount.postAmount
+                    })
+                }
+                tx["blockTime"] = res.data.blockTime
+            } catch (e) {
+                console.log("error getting tx", e)
+            }
+            return tx
+        });
+    }
+
+    /**
      * Get the detailed transaction info, compute account balance changes, identify the marketplaces involved
      * Get the sale amount, get the NFT information from the transaction and thenr retrieve the image from
      * ARWeave.
@@ -207,24 +303,35 @@ export default class SaleTracker {
     _parseTransactionForSaleInfo(signature) {
         return __awaiter(this, void 0, void 0, function* () {
             const me = this;
-            let transactionInfo = yield me.connection.getTransaction(signature);
+            console.log("processing transaction", signature)
+            let transactionInfo = yield me._getTransaction(signature);
             let accountKeys = transactionInfo === null || transactionInfo === void 0 ? void 0 : transactionInfo.transaction.message.accountKeys;
             let accountMap = [];
             if (accountKeys) {
                 let idx = 0;
                 for (let accountKey of accountKeys) {
-                    accountMap[idx++] = accountKey.toBase58();
+                    accountMap[idx++] = accountKey;
                 }
             }
             let allAddresses = _.values(accountMap);
             let buyer = accountMap[0];
             let { balanceDifferences, seller, mintInfo, saleAmount, marketPlace } = me._parseTransactionMeta(transactionInfo, accountMap, buyer, allAddresses);
-            if (balanceDifferences && balanceDifferences[me.config.primaryRoyaltiesAccount] > 0 && !_.isEmpty(marketPlace)) {
+            if (balanceDifferences && balanceDifferences[me.config.primaryRoyaltiesAccount] > 0) {
+
+                // if there is not mint data present then no need to continue
+                if (!mintInfo || mintInfo == "") {
+                    console.log("Not an NFT transaction", signature)
+                    return
+                }
+
+                // validate the NFT transaction
                 let mintMetaData = yield me._getMintMetadata(mintInfo);
                 if (!me._verifyNFT(mintMetaData)) {
-                    console.log("Not an NFT transaction that we're interested in", mintMetaData);
+                    console.log("Not an NFT mint associated with update authority", mintMetaData);
                     return;
                 }
+
+                // retrieve sales information for the NFT transaction
                 let arWeaveUri = _.get(mintMetaData, `data.uri`);
                 let arWeaveInfo = yield axios.get(arWeaveUri);
                 return {
@@ -241,6 +348,7 @@ export default class SaleTracker {
                     }
                 };
             }
+            console.log("Not a transaction we're interested in", signature)
         });
     }
     /**

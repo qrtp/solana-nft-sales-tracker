@@ -1,0 +1,21 @@
+{
+  "rpc": "https://solana-api.projectserum.com",
+  "updateAuthority": "8DyNeQYMWY6NLpPN7S1nTcDy2WXLnm5rzrtdWA2H2t6Y",
+  "primaryRoyaltiesAccount": "8DyNeQYMWY6NLpPN7S1nTcDy2WXLnm5rzrtdWA2H2t6Y",
+  "candyMachineId": "J9N15DfwMpwwCGV3NzKJrruxXgjRo3SYvwc1k2y8we1b",
+  "defaultUntilSignature": "29FPQSxzszV4wVsvgHEavSbUsUTykzUDcxL6T4Z2Uo9RZwN75cit4jWPWTRGryfmQuzVfkPM9EucR356eys1nFUd",
+  "marketPlaceInfos": [
+    {
+      "name": "DigitalEyes",
+      "addresses": [
+        "3iYf9hHQPciwgJ1TCjpRUp1A3QW4AfaK7J6vCmETRMuu"
+      ]
+    },
+    {
+      "name": "MagicEden",
+      "addresses": [
+        "2NZukH2TXpcuZP4htiuT8CFxcaQSWzkkR6kepSWnZ24Q"
+      ]
+    }
+  ]
+}
