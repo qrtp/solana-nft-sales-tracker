@@ -1,53 +1,67 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
+
 import { PublicKey } from "@solana/web3.js";
 import axios from 'axios';
 import fs from 'fs';
 import _ from 'lodash';
+import { initializeCOS, readCOSFile, writeCOSFile } from './cos.js';
 import DiscordHelper from './helpers/discord-helper.js';
 import { getMetadata } from './helpers/metadata-helpers.js';
 import TwitterHelper from './helpers/twitter-helper.js';
+
+var solscanURL = "https://public-api.solscan.io"
+
 export default class SaleTracker {
     constructor(config, outputType) {
         this.config = config;
-        this.auditFilePath = `./auditfile-${outputType}.json`;
-        this.airdropFilePath = `./airdrop-${outputType}.json`;
+        this.auditFilePath = `./auditfile-${config.updateAuthority}-${outputType}.json`;
+        this.airdropFilePath = `./airdrop-${config.updateAuthority}-${outputType}.json`;
         this.outputType = outputType;
     }
+
+    /**
+     * A function to ensure COS service is ready to receive requests
+     * to store and retrieve files.
+     */
+    async prepareCOS() {
+        if (await initializeCOS(this.config.cos)) {
+            var initializedFile = "init.txt"
+            var initializedText = "successfully initialized"
+            if (await writeCOSFile(initializedFile, initializedText)) {
+                return await readCOSFile(initializedFile) == initializedText
+            }
+        }
+        return false
+    }
+
     /**
      * The main function.
      */
-    checkSales() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const me = this;
-            let lockFile = me._readOrCreateAuditFile();
-            let lastProcessedSignature = _.last(lockFile.processedSignatures);
-            console.log("Starting transaction processing at signature: " + lastProcessedSignature);
-            let txs = _.reverse(yield me._getHistory(me.config.primaryRoyaltiesAccount, lastProcessedSignature))
-            _.remove(txs, tx => {
-                return _.includes(lockFile.processedSignatures, tx);
-            });
-            console.log("Got transactions", txs.length);
-            for (let tx of txs) {
-                let saleInfo = yield me._parseTransactionForSaleInfo(tx);
-                if (saleInfo) {
-                    yield me._getOutputPlugin().send(saleInfo);
-                    yield me._updateAirdropFile(saleInfo);
-                }
-                yield me._updateLockFile(tx);
-            }
-            console.log("Done");
+    async checkSales() {
+        const me = this;
+
+        // retrieve last known transaction signature from audit file
+        let lockFile = await me._readOrCreateAuditFile();
+        let lastProcessedSignature = _.last(lockFile.processedSignatures);
+        console.log("Starting transaction processing at signature: " + lastProcessedSignature);
+
+        // retrieve new transactions since last known signature
+        let txs = _.reverse(await me._getHistory(me.config.primaryRoyaltiesAccount, lastProcessedSignature))
+        _.remove(txs, tx => {
+            return _.includes(lockFile.processedSignatures, tx);
         });
+
+        // iterate the new transactions
+        console.log("Got transactions", txs.length);
+        for (let tx of txs) {
+            let saleInfo = await me._parseTransactionForSaleInfo(tx);
+            if (saleInfo) {
+                await me._getOutputPlugin().send(saleInfo);
+                await me._updateAirdropFile(saleInfo);
+            }
+            await me._updateLockFile(tx);
+        }
+        console.log("Done");
     }
-
-
 
     /**
      * A basic factory to return the output plugin.
@@ -71,81 +85,95 @@ export default class SaleTracker {
             return new TwitterHelper(me.config);
         }
     }
-    /**
-     * Returns a dummy audit file for first run.
-     * @returns
-     */
-    _getNewAuditFileStructure() {
-        return JSON.stringify({
-            processedSignatures: []
-        });
-    }
-
-    _getNewAirdropFileStructure() {
-        return JSON.stringify({
-            airdrops: []
-        });
-    }
 
     /**
      * Returns the auditfile if it exists, if not createss a new empty one.
      * @returns The contents of the auditfile.
      */
-    _readOrCreateAuditFile() {
+    async _readOrCreateAuditFile() {
         const me = this;
-        if (fs.existsSync(me.auditFilePath)) {
-            return JSON.parse(fs.readFileSync(me.auditFilePath).toString());
-        }
-        else {
-            fs.writeFileSync(me.auditFilePath, me._getNewAuditFileStructure());
-            return JSON.parse(fs.readFileSync(me.auditFilePath).toString());
-        }
+        return await me._readOrCreateFile(me.auditFilePath, JSON.stringify({
+            processedSignatures: []
+        }))
     }
-    _readOrCreateAirdropFile() {
+
+    /**
+     * Returns the airdrop file if it exists, or creates a new one
+     * @returns The contents of the airdrop file
+     */
+    async _readOrCreateAirdropFile() {
         const me = this;
-        if (fs.existsSync(me.airdropFilePath)) {
-            return JSON.parse(fs.readFileSync(me.airdropFilePath).toString());
+        return await me._readOrCreateFile(me.airdropFilePath, JSON.stringify({
+            airdrops: []
+        }))
+    }
+
+    /**
+     * Generic method to retrieve data from storage
+     * @returns The contents of the stored file
+     */
+    async _readOrCreateFile(filePath, defaultFormat) {
+        const me = this;
+
+        // prefer to use COS if available
+        if (me.config.cos) {
+            var cosData = await readCOSFile(filePath)
+            if (!cosData) {
+                cosData = defaultFormat
+                await writeCOSFile(filePath, cosData)
+            }
+            return JSON.parse(cosData)
         }
-        else {
-            fs.writeFileSync(me.airdropFilePath, me._getNewAirdropFileStructure());
-            return JSON.parse(fs.readFileSync(me.airdropFilePath).toString());
+
+        // fall back to local filesystem
+        if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, defaultFormat);
         }
+        return JSON.parse(fs.readFileSync(filePath).toString());
     }
 
     /**
      * Keeping it simple. Using a file to track processed signatures. Routinely trimming
      * signatures from the file to keep size in check.
-     * Improvement: Use a database to store the processed file information - helpes with easier deployment since in the current scheme the lock file is part of the commit.
      * @param signature
      */
-    _updateLockFile(signature) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const me = this;
-            let file = me._readOrCreateAuditFile();
-            file.processedSignatures.push(signature);
-            if (file.processedSignatures.length > 300) {
-                file.processedSignatures = _.takeRight(file.processedSignatures, 10);
-            }
-            yield fs.writeFileSync(me.auditFilePath, JSON.stringify(file));
-        });
+    async _updateLockFile(signature) {
+        const me = this;
+        let file = await me._readOrCreateAuditFile();
+        file.processedSignatures.push(signature);
+        if (file.processedSignatures.length > 300) {
+            file.processedSignatures = _.takeRight(file.processedSignatures, 10);
+        }
+        var fileContents = JSON.stringify(file)
+        if (me.config.cos) {
+            return await writeCOSFile(me.auditFilePath, fileContents)
+        }
+        fs.writeFileSync(me.auditFilePath, fileContents);
     }
 
-    _updateAirdropFile(saleInfo) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const me = this;
-            let file = me._readOrCreateAirdropFile();
-            file.airdrops.push({
-                type: "buyer",
-                wallet: saleInfo.buyer,
-                airdropAmount: 1
-            });
-            file.airdrops.push({
-                type: "seller",
-                wallet: saleInfo.seller,
-                airdropAmount: 3 * saleInfo.saleAmount
-            });
-            yield fs.writeFileSync(me.airdropFilePath, JSON.stringify(file));
+    /**
+     * Writes airdrop transaction data to persistent storage. Specific implementation detail
+     * for the NFT 4 Cause sales tracking.
+     * @param {*} saleInfo information to persist about the sale
+     */
+    async _updateAirdropFile(saleInfo) {
+        const me = this;
+        let file = await me._readOrCreateAirdropFile();
+        file.airdrops.push({
+            type: "buyer",
+            wallet: saleInfo.buyer,
+            airdropAmount: 1
         });
+        file.airdrops.push({
+            type: "seller",
+            wallet: saleInfo.seller,
+            airdropAmount: 3 * saleInfo.saleAmount
+        });
+        var fileContents = JSON.stringify(file)
+        if (me.config.cos) {
+            return await writeCOSFile(me.airdropFilePath, fileContents)
+        }
+        fs.writeFileSync(me.airdropFilePath, fileContents);
     }
 
     /**
@@ -160,6 +188,7 @@ export default class SaleTracker {
             return metadata;
         });
     }
+
     /**
      * Identifies the marketplace using the addresses asssociated with the transaction.
      * The marketplaces have their own royalty addresses which are credited as part of the sale.
@@ -177,6 +206,7 @@ export default class SaleTracker {
         });
         return marketPlace;
     }
+
     /**
      * The amount debited from the buyer is the actual amount paid for the NFT.
      * @param accountPostBalances - Map of account addresses and the balances post this transaction
@@ -186,6 +216,7 @@ export default class SaleTracker {
     _getSaleAmount(accountPostBalances, accountPreBalances, buyer) {
         return _.round(Math.abs(accountPostBalances[buyer] - accountPreBalances[buyer]) / Math.pow(10, 9), 2).toFixed(2);
     }
+
     /**
      * Some basic ways to avoid people sending fake transactions to our primaryRoyaltiesAccount in an attempt
      * to appear on the sale bots result.
@@ -198,6 +229,7 @@ export default class SaleTracker {
         let updateAuthority = _.get(mintMetadata, `updateAuthority`);
         return _.includes(creators, me.config.primaryRoyaltiesAccount) && updateAuthority === me.config.updateAuthority;
     }
+
     /**
      * Get wallet history until given transaction signature is reached.
      * @param pk - Wallet public key
@@ -220,7 +252,7 @@ export default class SaleTracker {
         }
         return __awaiter(this, void 0, void 0, function* () {
             let txs = []
-            let baseURL = 'https://public-api.solscan.io/account/transactions?limit=50&account=' + pk
+            let baseURL = solscanURL + '/account/transactions?limit=50&account=' + pk
             while (txs.length < maxCount) {
                 let url = baseURL
                 if (txs.length > 0) {
@@ -245,6 +277,7 @@ export default class SaleTracker {
             return txs
         });
     }
+
     /**
      * Get a transaction in the expected format.
      * @param signature - Transaction signature to retrieve
@@ -266,7 +299,7 @@ export default class SaleTracker {
                     "postBalances": []
                 }
             }
-            let url = 'https://public-api.solscan.io/transaction/' + signature
+            let url = solscanURL + '/transaction/' + signature
             console.log("Calling", url)
             try {
                 let res = yield axios.get(url)
@@ -351,6 +384,7 @@ export default class SaleTracker {
             console.log("Not a transaction we're interested in", signature)
         });
     }
+
     /**
      * Some rudimentary logic to compute account balance changes. Assumes that the
      * account which is credited the largest amount is the account of the seller.
@@ -391,3 +425,13 @@ export default class SaleTracker {
         };
     }
 }
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
