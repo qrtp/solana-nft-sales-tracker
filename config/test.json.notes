@@ -1,8 +1,0 @@
-Started from this NFT on Magic Eden:
-https://magiceden.io/item-details/6a4Wm77uuEz5ER4it5kqTTtkeC5r7WSZwjr78HtbdhzW
-
-Look up mint ID in explorer:
-https://explorer.solana.com/address/6a4Wm77uuEz5ER4it5kqTTtkeC5r7WSZwjr78HtbdhzW
-- Get update authority from output page
-- Click metdata data tab
-    - Get primary royalty address
