@@ -159,16 +159,26 @@ export default class SaleTracker {
     async _updateAirdropFile(saleInfo) {
         const me = this;
         let file = await me._readOrCreateAirdropFile();
-        file.airdrops.push({
-            type: "buyer",
-            wallet: saleInfo.buyer,
-            airdropAmount: 1
-        });
-        file.airdrops.push({
-            type: "seller",
-            wallet: saleInfo.seller,
-            airdropAmount: 3 * saleInfo.saleAmount
-        });
+        if (saleInfo.seller == me.config.updateAuthority) {
+            console.log(`recording airdrop for mint sale: ${saleInfo.txSignature}`)
+            file.airdrops.push({
+                type: "mint",
+                wallet: saleInfo.buyer,
+                airdropAmount: 30
+            });
+        } else {
+            console.log(`recording airdrop for secondary market sale: ${saleInfo.txSignature}`)
+            file.airdrops.push({
+                type: "buyer",
+                wallet: saleInfo.buyer,
+                airdropAmount: 1
+            });
+            file.airdrops.push({
+                type: "seller",
+                wallet: saleInfo.seller,
+                airdropAmount: 3 * saleInfo.saleAmount
+            });
+        }
         var fileContents = JSON.stringify(file)
         if (me.config.cos) {
             return await writeCOSFile(me.airdropFilePath, fileContents)
