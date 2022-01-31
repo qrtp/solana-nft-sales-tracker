@@ -164,19 +164,22 @@ export default class SaleTracker {
             file.airdrops.push({
                 type: "mint",
                 wallet: saleInfo.buyer,
-                airdropAmount: 30
+                airdropAmount: 30,
+                saleInfo: saleInfo
             });
         } else {
             console.log(`recording airdrop for secondary market sale: ${saleInfo.txSignature}`)
             file.airdrops.push({
                 type: "buyer",
                 wallet: saleInfo.buyer,
-                airdropAmount: 1
+                airdropAmount: 1,
+                saleInfo: saleInfo
             });
             file.airdrops.push({
                 type: "seller",
                 wallet: saleInfo.seller,
-                airdropAmount: 3 * saleInfo.saleAmount
+                airdropAmount: 3 * saleInfo.saleAmount,
+                saleInfo: saleInfo
             });
         }
         var fileContents = JSON.stringify(file)
