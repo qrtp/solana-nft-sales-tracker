@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 import axios from 'axios';
 import fs from 'fs';
 import _ from 'lodash';
-import { initializeCOS, readCOSFile, writeCOSFile } from './cos.js';
+import { readCOSFile, writeCOSFile } from './cos.js';
 import DiscordHelper from './helpers/discord-helper.js';
 import { getMetadata } from './helpers/metadata-helpers.js';
 import TwitterHelper from './helpers/twitter-helper.js';
@@ -19,20 +19,13 @@ export default class SaleTracker {
     }
 
     /**
-     * A function to ensure COS service is ready to receive requests
-     * to store and retrieve files.
-     */
-    async prepareCOS() {
-        return await initializeCOS(this.config.cos)
-    }
-
-    /**
      * The main function.
      */
     async checkSales() {
         const me = this;
 
         // retrieve last known transaction signature from audit file
+        console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}`)
         let lockFile = await me._readOrCreateAuditFile();
         let lastProcessedSignature = _.last(lockFile.processedSignatures);
         console.log("Starting transaction processing at signature: " + lastProcessedSignature);

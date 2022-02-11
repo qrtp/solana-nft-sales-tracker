@@ -6,6 +6,7 @@
 import fs from 'fs';
 import _ from 'lodash';
 import yargs from 'yargs';
+import { initializeCOS, listCOSFiles, readCOSFile, writeCOSFile } from './src/cos.js';
 import SalesTracker from './src/main.js';
 
 let config = {}
@@ -25,12 +26,54 @@ if (configPath) {
     process.exit(1)
 }
 
-let tracker = new SalesTracker(config, outputType);
-if (config.cos) {
-    if (!await tracker.prepareCOS()) {
-        console.log("COS failed to initialize")
-        process.exit(1)
+// retrieves list of all projects update authorities
+async function getAllProjects() {
+    console.log("retrieving all projects")
+    var projects = []
+    var updateAuthoritiesMap = {}
+    var projectIDs = await listCOSFiles("config/prod")
+    for (var i = 0; i < projectIDs.length; i++) {
+        //read the config
+        var projectConfig = JSON.parse(await readCOSFile(projectIDs[i]))
+        if (projectConfig) {
+            updateAuthoritiesMap[projectConfig.update_authority] = projectConfig
+        }
     }
-    console.log("COS successfully initialized")
+    Object.keys(updateAuthoritiesMap).forEach(function (key) {
+        projects.push({
+            updateAuthority: updateAuthoritiesMap[key].update_authority,
+            primaryRoyaltiesAccount: updateAuthoritiesMap[key].royalty_wallet_id
+        })
+    })
+    console.log(`successfully retrieved all projects: ${JSON.stringify(projects)}`)
+    return projects
 }
-await tracker.checkSales();
+
+// initialize COS and get the list of all update authorities
+if (config.cos && !await initializeCOS(config.cos)) {
+    console.log("COS support is required to continue")
+    process.exit(1)
+}
+
+// write file to indicate running
+var lockFileName = "sales-tracker-running"
+var lockFileContents = await readCOSFile(lockFileName)
+console.log(`lock file contents: ${lockFileContents}`)
+if (lockFileContents && lockFileContents != "") {
+    console.log("Sales tracker is already running, exiting")
+    process.exit(0)
+}
+await writeCOSFile(lockFileName, Date.now().toString())
+
+// retrieve all update authorities and iterate
+var allProjects = await getAllProjects()
+for (var i = 0; i < allProjects.length; i++) {
+    var trackerConfig = config
+    trackerConfig.updateAuthority = allProjects[i].updateAuthority
+    trackerConfig.primaryRoyaltiesAccount = allProjects[i].primaryRoyaltiesAccount
+    let tracker = new SalesTracker(config, outputType);
+    await tracker.checkSales();
+}
+
+// clear the lock file
+await writeCOSFile(lockFileName, "")

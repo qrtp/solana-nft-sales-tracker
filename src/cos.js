@@ -17,6 +17,20 @@ export async function readCOSFile(fileName) {
     return await getItem(bucketName, fileName)
 }
 
+// listCOSFiles retrieves names of items matching a given string
+export async function listCOSFiles(matchString) {
+    var allBucketItems = await getBucketObjects(bucketName)
+    var matchingBucketItems = []
+    if (allBucketItems) {
+        for (var i = 0; i < allBucketItems.length; i++) {
+            if (allBucketItems[i].Key?.includes(matchString) || matchString == "") {
+                matchingBucketItems.push(allBucketItems[i].Key)
+            }
+        }
+    }
+    return matchingBucketItems
+}
+
 // Determines if a given bucket exists
 async function bucketExists(name) {
     try {
@@ -53,6 +67,19 @@ async function createBucket(bucketName) {
     return false
 }
 
+// Lists all items in specified bucket
+async function getBucketObjects(bucketName) {
+    try {
+        const data = await cos.listObjects({
+            Bucket: bucketName,
+        }).promise()
+        return data.Contents
+    } catch (e) {
+        logError(e)
+    }
+    return []
+}
+
 // Creates a new text file
 async function createTextFile(bucketName, itemName, fileText) {
     console.log(`writing text file to bucket: ${bucketName}, ${itemName}`);
@@ -87,7 +114,7 @@ async function getItem(bucketName, itemName) {
 // initCOS initializes COS instance
 export async function initializeCOS(c) {
     try {
-        console.log(`configuring COS`)
+        console.log(`configuring COS: ${c.bucket}`)
         var config = {
             ibmAuthEndpoint: "https://iam.cloud.ibm.com/identity/token",
             signatureVersion: "iam",
@@ -96,6 +123,7 @@ export async function initializeCOS(c) {
             serviceInstanceId: c.resource_instance_id
         };
         bucketName = c.bucket
+        console.log(`bucket ${c.endpoint}`)
         storageClass = c.storageClass
         cos = new ibm.S3(config);
         if (!await bucketExists(bucketName)) {
