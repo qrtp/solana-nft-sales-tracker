@@ -71,8 +71,12 @@ for (var i = 0; i < allProjects.length; i++) {
     var trackerConfig = config
     trackerConfig.updateAuthority = allProjects[i].updateAuthority
     trackerConfig.primaryRoyaltiesAccount = allProjects[i].primaryRoyaltiesAccount
-    let tracker = new SalesTracker(config, outputType);
-    await tracker.checkSales();
+    try {
+        let tracker = new SalesTracker(config, outputType);
+        await tracker.checkSales();
+    } catch (e) {
+        console.log("error tracking sales", config, e)
+    }
 }
 
 // clear the lock file
