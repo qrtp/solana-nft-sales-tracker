@@ -14,7 +14,7 @@ export default class SaleTracker {
     constructor(config, outputType) {
         this.config = config;
         this.auditFilePath = `./auditfile-${config.updateAuthority}-${outputType}.json`;
-        this.airdropFilePath = `./airdrop-${config.updateAuthority}-${outputType}.json`;
+        this.salesFilePath = `./sales-${config.updateAuthority}-${outputType}.json`;
         this.outputType = outputType;
     }
 
@@ -23,14 +23,7 @@ export default class SaleTracker {
      * to store and retrieve files.
      */
     async prepareCOS() {
-        if (await initializeCOS(this.config.cos)) {
-            var initializedFile = "init.txt"
-            var initializedText = "successfully initialized"
-            if (await writeCOSFile(initializedFile, initializedText)) {
-                return await readCOSFile(initializedFile) == initializedText
-            }
-        }
-        return false
+        return await initializeCOS(this.config.cos)
     }
 
     /**
@@ -56,7 +49,7 @@ export default class SaleTracker {
             let saleInfo = await me._parseTransactionForSaleInfo(tx);
             if (saleInfo) {
                 await me._getOutputPlugin().send(saleInfo);
-                await me._updateAirdropFile(saleInfo);
+                await me._updateSalesFile(saleInfo);
             }
             await me._updateLockFile(tx);
         }
@@ -98,13 +91,13 @@ export default class SaleTracker {
     }
 
     /**
-     * Returns the airdrop file if it exists, or creates a new one
-     * @returns The contents of the airdrop file
+     * Returns the sales file if it exists, or creates a new one
+     * @returns The contents of the sales file
      */
-    async _readOrCreateAirdropFile() {
+    async _readOrCreateSalesFile() {
         const me = this;
-        return await me._readOrCreateFile(me.airdropFilePath, JSON.stringify({
-            airdrops: []
+        return await me._readOrCreateFile(me.salesFilePath, JSON.stringify({
+            sales: []
         }))
     }
 
@@ -152,41 +145,43 @@ export default class SaleTracker {
     }
 
     /**
-     * Writes airdrop transaction data to persistent storage. Specific implementation detail
+     * Writes sales transaction data to persistent storage. Specific implementation detail
      * for the NFT 4 Cause sales tracking.
      * @param {*} saleInfo information to persist about the sale
      */
-    async _updateAirdropFile(saleInfo) {
+    async _updateSalesFile(saleInfo) {
+
+        // retrieve the sales file
         const me = this;
-        let file = await me._readOrCreateAirdropFile();
+        let file = await me._readOrCreateSalesFile();
+
+        // check first for duplicate
+        for (var i = 0; i < file.sales.length; i++) {
+            if (file.sales[i].data.txSignature == saleInfo.txSignature) {
+                console.log(`sale has already been recorded: ${saleInfo.txSignature}`)
+                return
+            }
+        }
+
+        // add a new sales record
         if (saleInfo.seller == me.config.updateAuthority) {
-            console.log(`recording airdrop for mint sale: ${saleInfo.txSignature}`)
-            file.airdrops.push({
+            console.log(`recording mint sale: ${saleInfo.txSignature}`)
+            file.sales.push({
                 type: "mint",
-                wallet: saleInfo.buyer,
-                airdropAmount: 30,
-                saleInfo: saleInfo
+                data: saleInfo
             });
         } else {
-            console.log(`recording airdrop for secondary market sale: ${saleInfo.txSignature}`)
-            file.airdrops.push({
-                type: "buyer",
-                wallet: saleInfo.buyer,
-                airdropAmount: 1,
-                saleInfo: saleInfo
-            });
-            file.airdrops.push({
-                type: "seller",
-                wallet: saleInfo.seller,
-                airdropAmount: 3 * saleInfo.saleAmount,
-                saleInfo: saleInfo
+            console.log(`recording secondary market sale: ${saleInfo.txSignature}`)
+            file.sales.push({
+                type: "secondary",
+                data: saleInfo
             });
         }
         var fileContents = JSON.stringify(file)
         if (me.config.cos) {
-            return await writeCOSFile(me.airdropFilePath, fileContents)
+            return await writeCOSFile(me.salesFilePath, fileContents)
         }
-        fs.writeFileSync(me.airdropFilePath, fileContents);
+        fs.writeFileSync(me.salesFilePath, fileContents);
     }
 
     /**

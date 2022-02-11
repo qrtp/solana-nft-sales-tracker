@@ -86,21 +86,26 @@ async function getItem(bucketName, itemName) {
 
 // initCOS initializes COS instance
 export async function initializeCOS(c) {
-    console.log(`configuring COS`)
-    var config = {
-        ibmAuthEndpoint: "https://iam.cloud.ibm.com/identity/token",
-        signatureVersion: "iam",
-        endpoint: c.endpoint,
-        apiKeyId: c.apikey,
-        serviceInstanceId: c.resource_instance_id
-    };
-    bucketName = c.bucket
-    storageClass = c.storageClass
-    cos = new ibm.S3(config);
-    if (!await bucketExists(bucketName)) {
-        return createBucket(bucketName)
+    try {
+        console.log(`configuring COS`)
+        var config = {
+            ibmAuthEndpoint: "https://iam.cloud.ibm.com/identity/token",
+            signatureVersion: "iam",
+            endpoint: c.endpoint,
+            apiKeyId: c.apikey,
+            serviceInstanceId: c.resource_instance_id
+        };
+        bucketName = c.bucket
+        storageClass = c.storageClass
+        cos = new ibm.S3(config);
+        if (!await bucketExists(bucketName)) {
+            return createBucket(bucketName)
+        }
+        return true
+    } catch (e) {
+        logError(e)
+        return false
     }
-    return true
 }
 
 // Prints errors to console
