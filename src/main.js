@@ -376,6 +376,7 @@ export default class SaleTracker {
                     seller,
                     saleAmount,
                     nftInfo: {
+                        mint: mintInfo,
                         id: _.get(mintMetaData, `data.name`),
                         name: _.get(mintMetaData, `data.name`),
                         image: arWeaveInfo.data.image
