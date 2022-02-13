@@ -60,8 +60,15 @@ var lockFileName = "sales-tracker-running"
 var lockFileContents = await readCOSFile(lockFileName)
 console.log(`lock file contents: ${lockFileContents}`)
 if (lockFileContents && lockFileContents != "") {
-    console.log("Sales tracker is already running, exiting")
-    process.exit(0)
+
+    // is the timeout expired?
+    var maxTimeout = 7200
+    var elapsedSinceLastRun = (Date.now() - new Date(parseInt(lockFileContents)).getTime()) / 1000
+    if (elapsedSinceLastRun < maxTimeout) {
+        console.log(`Sales tracker is already running (${elapsedSinceLastRun}s ago), exiting`)
+        process.exit(0)
+    }
+    console.log(`Sales tracker last ran ${elapsedSinceLastRun}s ago`)
 }
 await writeCOSFile(lockFileName, Date.now().toString())
 

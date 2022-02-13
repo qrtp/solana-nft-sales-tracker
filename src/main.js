@@ -245,6 +245,10 @@ export default class SaleTracker {
                 untilSignature = me.config.defaultUntilSignature
             }
         }
+        if (pk == "") {
+            console.log("no primary key provided for sales tracking")
+            return []
+        }
         if (untilSignature == "" || !untilSignature) {
             console.log("no end signagure is set, defaulting max tx to 25")
             maxCount = 25
@@ -262,6 +266,10 @@ export default class SaleTracker {
                 console.log("Calling", url)
                 try {
                     let res = yield axios.get(url)
+                    if (res.data && res.data.length == 0) {
+                        console.log("no transactions remaining")
+                        break
+                    }
                     for (let tx of res.data) {
                         if (tx.txHash == untilSignature) {
                             return txs
