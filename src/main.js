@@ -281,6 +281,7 @@ export default class SaleTracker {
                     }
                 } catch (e) {
                     console.log("error getting txs", e)
+                    break
                 }
             }
             return txs
