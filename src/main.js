@@ -12,9 +12,15 @@ var solscanURL = "https://public-api.solscan.io"
 
 export default class SaleTracker {
     constructor(config, outputType) {
+
+        //require at least one output type
+        if (outputType.length == 0) {
+            return
+        }
+
         this.config = config;
-        this.auditFilePath = `./auditfile-${config.updateAuthority}-${outputType}.json`;
-        this.salesFilePath = `./sales-${config.updateAuthority}-${outputType}.json`;
+        this.auditFilePath = `./auditfile-${config.updateAuthority}-console.json`;
+        this.salesFilePath = `./sales-${config.updateAuthority}-console.json`;
         this.outputType = outputType;
     }
 
@@ -23,6 +29,12 @@ export default class SaleTracker {
      */
     async checkSales() {
         const me = this;
+
+        // ensure a valid configuration
+        if (!me.config) {
+            console.log("invalid configuration")
+            return
+        }
 
         // retrieve last known transaction signature from audit file
         console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}`)
@@ -41,8 +53,7 @@ export default class SaleTracker {
         for (let tx of txs) {
             let saleInfo = await me._parseTransactionForSaleInfo(tx);
             if (saleInfo) {
-                await me._getOutputPlugin().send(saleInfo);
-                await me._updateSalesFile(saleInfo);
+                await me._renderOutputs(saleInfo)
             }
             await me._updateLockFile(tx);
         }
@@ -53,22 +64,46 @@ export default class SaleTracker {
      * A basic factory to return the output plugin.
      * @returns
      */
-    _getOutputPlugin() {
+    async _renderOutputs(saleInfo) {
         const me = this;
-        if (me.outputType === 'console') {
-            return {
-                send: function (saleInfo) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        console.log(JSON.stringify(saleInfo), null, 2);
-                    });
+
+        console.log(`rendering outputs for sale ${saleInfo}`)
+        for (var i = 0; i < me.outputType.length; i++) {
+            var output = me.outputType[i]
+            try {
+                // render an output method
+                var outputMethod
+                if (output === 'console') {
+                    outputMethod = {
+                        send: function (saleInfo) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                console.log(JSON.stringify(saleInfo, null, 2));
+                            });
+                        }
+                    };
                 }
-            };
-        }
-        if (me.outputType === 'discord') {
-            return new DiscordHelper(me.config);
-        }
-        else {
-            return new TwitterHelper(me.config);
+                else if (output === 'cos') {
+                    outputMethod = {
+                        send: async function (saleInfo) {
+                            return await me._updateSalesFile(saleInfo)
+                        }
+                    };
+                }
+                else if (output === 'discord') {
+                    outputMethod = new DiscordHelper(me.config);
+                }
+                else if (output === 'twitter') {
+                    outputMethod = new TwitterHelper(me.config);
+                }
+
+                // send to output method
+                if (outputMethod) {
+                    console.log("rendering sale for output method", output)
+                    await outputMethod.send(saleInfo)
+                }
+            } catch (e) {
+                console.log(`error rendering output method`, e)
+            }
         }
     }
 
@@ -240,11 +275,6 @@ export default class SaleTracker {
     _getHistory(pk, untilSignature) {
         const me = this;
         let maxCount = 5000
-        if (untilSignature == "" || !untilSignature) {
-            if (me.config.defaultUntilSignature != "") {
-                untilSignature = me.config.defaultUntilSignature
-            }
-        }
         if (pk == "") {
             console.log("no primary key provided for sales tracking")
             return []

@@ -11,11 +11,9 @@ import SalesTracker from './src/main.js';
 
 let config = {}
 let configPath = yargs(process.argv).argv.config;
-let outputType = "console"
 if (configPath) {
     console.log("retrieving config from file")
     let overrides = yargs(process.argv).argv;
-    outputType = overrides.outputType || 'console';
     config = JSON.parse(fs.readFileSync(configPath).toString());
     config = _.assignIn(config, overrides);
 } else if (process.env.SOLANA_NFT_SALES_TRACKER_CONFIG) {
@@ -75,11 +73,12 @@ await writeCOSFile(lockFileName, Date.now().toString())
 // retrieve all update authorities and iterate
 var allProjects = await getAllProjects()
 for (var i = 0; i < allProjects.length; i++) {
+
     var trackerConfig = config
     trackerConfig.updateAuthority = allProjects[i].updateAuthority
     trackerConfig.primaryRoyaltiesAccount = allProjects[i].primaryRoyaltiesAccount
     try {
-        let tracker = new SalesTracker(config, outputType);
+        let tracker = new SalesTracker(config, ["console", "cos", "discord", "twitter"]);
         await tracker.checkSales();
     } catch (e) {
         console.log("error tracking sales", config, e)

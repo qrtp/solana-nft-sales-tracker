@@ -17,12 +17,14 @@ import Twitter from 'twitter';
 export default class TwitterHelper {
     constructor(config) {
         this.config = config;
-        this.client = new Twitter({
-            consumer_key: this.config.twitter.consumerApiKey,
-            consumer_secret: this.config.twitter.consumerApiSecret,
-            access_token_key: this.config.twitter.oauth.token,
-            access_token_secret: this.config.twitter.oauth.secret
-        });
+        if (this.config.twitter) {
+            this.client = new Twitter({
+                consumer_key: this.config.twitter.consumerApiKey,
+                consumer_secret: this.config.twitter.consumerApiSecret,
+                access_token_key: this.config.twitter.oauth.token,
+                access_token_secret: this.config.twitter.oauth.secret
+            });
+        }
     }
     /**
      * Downloads image from a URL and returns it in Base64 format.
@@ -42,12 +44,7 @@ export default class TwitterHelper {
     formatTweet(saleInfo) {
         return {
             status: `
-  ${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} S◎L 🐦 
-  Marketplaces 📒 
-  → https://digitaleyes.market/collections/Flutter
-  → https://magiceden.io/marketplace?collection_symbol=flutter
-  
-  @FlutterNFT #FlutterNFT #FlutterTogether
+  ${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 
   
   Explorer: https://explorer.solana.com/tx/${saleInfo.txSignature}
     `
@@ -60,17 +57,19 @@ export default class TwitterHelper {
     send(saleInfo) {
         return __awaiter(this, void 0, void 0, function* () {
             const me = this;
-            let tweetInfo = me.formatTweet(saleInfo);
-            let image = yield me.getBase64(`${saleInfo.nftInfo.image}`);
-            let mediaUpload;
-            try {
-                mediaUpload = yield me.client.post('media/upload', { media_data: image });
+            if (me.client) {
+                let tweetInfo = me.formatTweet(saleInfo);
+                let image = yield me.getBase64(`${saleInfo.nftInfo.image}`);
+                let mediaUpload;
+                try {
+                    mediaUpload = yield me.client.post('media/upload', { media_data: image });
+                }
+                catch (err) {
+                    console.log(JSON.stringify(err));
+                    throw err;
+                }
+                yield me.client.post('statuses/update.json', { status: tweetInfo.status, media_ids: mediaUpload.media_id_string });
             }
-            catch (err) {
-                console.log(JSON.stringify(err));
-                throw err;
-            }
-            yield me.client.post('statuses/update.json', { status: tweetInfo.status, media_ids: mediaUpload.media_id_string });
         });
     }
 }

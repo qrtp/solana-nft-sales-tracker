@@ -18,11 +18,11 @@ export default class DiscordHelper {
     }
     _createWebhookData(saleInfo) {
         return {
-            "username": "Flutter Sales Bot",
+            "username": "NFT 4 Cause Sales Bot",
             "embeds": [
                 {
                     "author": {
-                        "name": "Flutter Sales Bot"
+                        "name": "NFT 4 Cause Sales Bot"
                     },
                     "fields": [
                         {
@@ -64,7 +64,9 @@ export default class DiscordHelper {
     send(saleInfo) {
         return __awaiter(this, void 0, void 0, function* () {
             const me = this;
-            yield axios.post(this.config.discord.webhookUrl, me._createWebhookData(saleInfo));
+            if (this.config.discord.webhookUrl) {
+                yield axios.post(this.config.discord.webhookUrl, me._createWebhookData(saleInfo));
+            }
         });
     }
 }
