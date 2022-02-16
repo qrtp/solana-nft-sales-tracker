@@ -39,8 +39,10 @@ async function getAllProjects() {
     }
     Object.keys(updateAuthoritiesMap).forEach(function (key) {
         projects.push({
+            isHolder: updateAuthoritiesMap[key].is_holder,
             updateAuthority: updateAuthoritiesMap[key].update_authority,
-            primaryRoyaltiesAccount: updateAuthoritiesMap[key].royalty_wallet_id
+            primaryRoyaltiesAccount: updateAuthoritiesMap[key].royalty_wallet_id,
+            discordWebhook: updateAuthoritiesMap[key].discord_webhook
         })
     })
     console.log(`successfully retrieved all projects: ${JSON.stringify(projects)}`)
@@ -77,6 +79,18 @@ for (var i = 0; i < allProjects.length; i++) {
     var trackerConfig = config
     trackerConfig.updateAuthority = allProjects[i].updateAuthority
     trackerConfig.primaryRoyaltiesAccount = allProjects[i].primaryRoyaltiesAccount
+    if (allProjects[i].isHolder) {
+        if (allProjects[i].discordWebhook) {
+            console.log(`enabling discord sales tracker notifications for ${trackerConfig.updateAuthority}`)
+            trackerConfig.discord = {
+                webhookUrl: allProjects[i].discordWebhook
+            }
+        } else {
+            console.log(`discord sales tracker notifications not configured ${trackerConfig.updateAuthority}`)
+        }
+    } else {
+        console.log(`sales tracker notifications disabled for ${trackerConfig.updateAuthority}`)
+    }
     try {
         let tracker = new SalesTracker(config, ["console", "cos", "discord", "twitter"]);
         await tracker.checkSales();
