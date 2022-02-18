@@ -51,11 +51,16 @@ export default class SaleTracker {
         // iterate the new transactions
         console.log("Got transactions", txs.length);
         for (let tx of txs) {
-            let saleInfo = await me._parseTransactionForSaleInfo(tx);
-            if (saleInfo) {
-                await me._renderOutputs(saleInfo)
+            try {
+                let saleInfo = await me._parseTransactionForSaleInfo(tx);
+                if (saleInfo) {
+                    await me._renderOutputs(saleInfo)
+                }
+            } catch (e) {
+                console.log("error parsing transaction", e)
+            } finally {
+                await me._updateLockFile(tx);
             }
-            await me._updateLockFile(tx);
         }
         console.log("Done");
     }

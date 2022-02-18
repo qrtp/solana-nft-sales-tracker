@@ -76,9 +76,16 @@ await writeCOSFile(lockFileName, Date.now().toString())
 var allProjects = await getAllProjects()
 for (var i = 0; i < allProjects.length; i++) {
 
-    var trackerConfig = config
-    trackerConfig.updateAuthority = allProjects[i].updateAuthority
-    trackerConfig.primaryRoyaltiesAccount = allProjects[i].primaryRoyaltiesAccount
+    // combine base configuration with project configuration
+    var trackerConfig = {
+        rpc: config.rpc,
+        updateAuthority: allProjects[i].updateAuthority,
+        primaryRoyaltiesAccount: allProjects[i].primaryRoyaltiesAccount,
+        marketPlaceInfos: config.marketPlaceInfos,
+        cos: config.cos
+    }
+
+    // make holder specific features available
     if (allProjects[i].isHolder) {
         if (allProjects[i].discordWebhook) {
             console.log(`enabling discord sales tracker notifications for ${trackerConfig.updateAuthority}`)
@@ -91,11 +98,13 @@ for (var i = 0; i < allProjects.length; i++) {
     } else {
         console.log(`sales tracker notifications disabled for ${trackerConfig.updateAuthority}`)
     }
+
+    // run the project sales tracker
     try {
-        let tracker = new SalesTracker(config, ["console", "cos", "discord", "twitter"]);
+        let tracker = new SalesTracker(trackerConfig, ["console", "cos", "discord", "twitter"]);
         await tracker.checkSales();
     } catch (e) {
-        console.log("error tracking sales", config, e)
+        console.log("error tracking sales", trackerConfig, e)
     }
 }
 
