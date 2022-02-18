@@ -46,7 +46,7 @@ export default class DiscordHelper {
                         },
                         {
                             "name": "Marketplace",
-                            "value": saleInfo.marketPlace,
+                            "value": (saleInfo.seller == this.config.primaryRoyaltiesAccount) ? "Mint" : saleInfo.marketPlace,
                             "inline": false
                         }
                     ],
