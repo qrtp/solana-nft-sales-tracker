@@ -57,6 +57,7 @@ if (config.cos && !await initializeCOS(config.cos)) {
 
 // write file to indicate running
 var lockFileName = "sales-tracker-running"
+var successFileName = "sales-tracker-success"
 var lockFileContents = await readCOSFile(lockFileName)
 console.log(`lock file contents: ${lockFileContents}`)
 if (lockFileContents && lockFileContents != "") {
@@ -73,6 +74,7 @@ if (lockFileContents && lockFileContents != "") {
 await writeCOSFile(lockFileName, Date.now().toString())
 
 // retrieve all update authorities and iterate
+var startTime = Date.now()
 var allProjects = await getAllProjects()
 for (var i = 0; i < allProjects.length; i++) {
 
@@ -108,5 +110,8 @@ for (var i = 0; i < allProjects.length; i++) {
     }
 }
 
-// clear the lock file
+// update the sales tracker state
 await writeCOSFile(lockFileName, "")
+await writeCOSFile(successFileName, Date.now().toString())
+var elapsedTime = Date.now() - startTime
+console.log(`sales tracking complete in ${elapsedTime}ms for ${allProjects.length} projects`) 
