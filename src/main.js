@@ -279,7 +279,7 @@ export default class SaleTracker {
      */
     _getHistory(pk, untilSignature) {
         const me = this;
-        let maxCount = 5000
+        let maxCount = 500
         if (pk == "") {
             console.log("no primary key provided for sales tracking")
             return []
