@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import axios from 'axios';
 import Twitter from 'twitter';
+
 /**
  * Twitter uses 3 legged oAuth for certain endpoints.
  * You can get the oauth key and secret by simulating the API calls yourselves.
@@ -17,7 +18,7 @@ import Twitter from 'twitter';
 export default class TwitterHelper {
     constructor(config) {
         this.config = config;
-        if (this.config.twitter) {
+        if (this.config.twitter && this.config.twitter.consumerApiKey && this.config.twitter.projectUsername) {
             this.client = new Twitter({
                 consumer_key: this.config.twitter.consumerApiKey,
                 consumer_secret: this.config.twitter.consumerApiSecret,
@@ -42,11 +43,19 @@ export default class TwitterHelper {
      * @returns
      */
     formatTweet(saleInfo) {
+        var tag = ""
+        if (this.config.twitter.projectUsername) {
+            var projectUsername = this.config.twitter.projectUsername.replaceAll("@", "")
+            var connectedUsername = (this.config.twitter.connectedUsername) ? this.config.twitter.connectedUsername : ""
+            if (!this.config.isHolder || projectUsername.toLowerCase() != connectedUsername.toLowerCase()) {
+                tag = ` (@${projectUsername})`
+            }
+        }
         return {
             status: `
-  ${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 
+  ${this.config.projectFiendlyName}${tag} ${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 ➡️ https://solscan.io/tx/${saleInfo.txSignature}
   
-  Explorer: https://explorer.solana.com/tx/${saleInfo.txSignature}
+  #Solana #NFT
     `
         };
     }

@@ -40,9 +40,14 @@ async function getAllProjects() {
     Object.keys(updateAuthoritiesMap).forEach(function (key) {
         projects.push({
             isHolder: updateAuthoritiesMap[key].is_holder,
+            projectFiendlyName: updateAuthoritiesMap[key].project_friendly_name,
             updateAuthority: updateAuthoritiesMap[key].update_authority,
             primaryRoyaltiesAccount: updateAuthoritiesMap[key].royalty_wallet_id,
-            discordWebhook: updateAuthoritiesMap[key].discord_webhook
+            discordWebhook: updateAuthoritiesMap[key].discord_webhook,
+            twitterProjectUsername: updateAuthoritiesMap[key].project_twitter_name,
+            twitterConnectedUsername: updateAuthoritiesMap[key].connected_twitter_name,
+            twitterAccessToken: updateAuthoritiesMap[key].twitterAccessToken,
+            twitterTokenSecret: updateAuthoritiesMap[key].twitterTokenSecret
         })
     })
     console.log(`successfully retrieved all projects: ${JSON.stringify(projects)}`)
@@ -81,10 +86,24 @@ for (var i = 0; i < allProjects.length; i++) {
     // combine base configuration with project configuration
     var trackerConfig = {
         rpc: config.rpc,
+        isHolder: allProjects[i].isHolder,
         updateAuthority: allProjects[i].updateAuthority,
         primaryRoyaltiesAccount: allProjects[i].primaryRoyaltiesAccount,
+        projectFiendlyName: allProjects[i].projectFiendlyName,
         marketPlaceInfos: config.marketPlaceInfos,
         cos: config.cos
+    }
+
+    // use default twitter bot configuration for non-holders
+    trackerConfig.twitter = {
+        connectedUsername: allProjects[i].twitterConnectedUsername,
+        projectUsername: allProjects[i].twitterProjectUsername,
+        consumerApiKey: config.twitter.consumerApiKey,       // service consumer API key
+        consumerApiSecret: config.twitter.consumerApiSecret, // service consumer API secret
+        oauth: {
+            token: config.twitter.defaultOauthAccessToken,   // default access token for hosted bot
+            secret: config.twitter.defaultOauthTokenSecret   // default token secret for hosted bot
+        }
     }
 
     // make holder specific features available
@@ -96,6 +115,15 @@ for (var i = 0; i < allProjects.length; i++) {
             }
         } else {
             console.log(`discord sales tracker notifications not configured ${trackerConfig.updateAuthority}`)
+        }
+        if (allProjects[i].twitterAccessToken && allProjects[i].twitterTokenSecret) {
+            console.log(`enabling custom twitter sales tracker notifications for ${trackerConfig.updateAuthority}`)
+            trackerConfig.twitter.oauth = {
+                token: allProjects[i].twitterAccessToken, // project specific access token from OAuth handshake
+                secret: allProjects[i].twitterTokenSecret // project specific token secret from OAth handshake
+            }
+        } else {
+            console.log(`custom twitter sales tracker notifications not configured ${trackerConfig.updateAuthority}`)
         }
     } else {
         console.log(`sales tracker notifications disabled for ${trackerConfig.updateAuthority}`)
