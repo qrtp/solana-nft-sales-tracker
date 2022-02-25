@@ -18,7 +18,7 @@ import Twitter from 'twitter';
 export default class TwitterHelper {
     constructor(config) {
         this.config = config;
-        if (this.config.twitter && this.config.twitter.consumerApiKey && this.config.twitter.projectUsername) {
+        if (this.config.twitter && this.config.twitter.consumerApiKey) {
             this.client = new Twitter({
                 consumer_key: this.config.twitter.consumerApiKey,
                 consumer_secret: this.config.twitter.consumerApiSecret,
@@ -43,19 +43,10 @@ export default class TwitterHelper {
      * @returns
      */
     formatTweet(saleInfo) {
-        var tag = ""
-        if (this.config.twitter.projectUsername) {
-            var projectUsername = this.config.twitter.projectUsername.replaceAll("@", "")
-            var connectedUsername = (this.config.twitter.connectedUsername) ? this.config.twitter.connectedUsername : ""
-            if (!this.config.isHolder || projectUsername.toLowerCase() != connectedUsername.toLowerCase()) {
-                tag = ` (@${projectUsername})`
-            }
-        }
         return {
-            status: `
-  ${this.config.projectFiendlyName}${tag} ${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 ➡️ https://solscan.io/tx/${saleInfo.txSignature}
+            status: `${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 ➡️ https://solscan.io/tx/${saleInfo.txSignature}
   
-  #Solana #NFT
+#Solana #NFT
     `
         };
     }
