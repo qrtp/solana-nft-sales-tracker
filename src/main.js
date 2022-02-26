@@ -36,8 +36,11 @@ export default class SaleTracker {
             return
         }
 
+        // retrieve current number of sales
+        let salesFile = await me._readOrCreateSalesFile()
+
         // retrieve last known transaction signature from audit file
-        console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}`)
+        console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}, current=${salesFile.sales.length}`)
         let lockFile = await me._readOrCreateAuditFile();
         let lastProcessedSignature = _.last(lockFile.processedSignatures);
         console.log("Starting transaction processing at signature: " + lastProcessedSignature);
@@ -146,7 +149,8 @@ export default class SaleTracker {
             var cosData = await readCOSFile(filePath)
             if (!cosData) {
                 cosData = defaultFormat
-                await writeCOSFile(filePath, cosData)
+                console.log(`writing default format for file ${filePath}`)
+                await writeCOSFile(filePath, defaultFormat)
             }
             return JSON.parse(cosData)
         }
