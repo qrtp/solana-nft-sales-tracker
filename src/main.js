@@ -268,7 +268,7 @@ export default class SaleTracker {
         const me = this;
         let creators = _.map(mintMetadata.data.creators, 'address');
         let updateAuthority = _.get(mintMetadata, `updateAuthority`);
-        return _.includes(creators, me.config.primaryRoyaltiesAccount) && updateAuthority === me.config.updateAuthority;
+        return updateAuthority === me.config.updateAuthority;
     }
 
     /**
