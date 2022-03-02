@@ -34,13 +34,15 @@ async function getAllProjects() {
         //read the config
         var projectConfig = JSON.parse(await readCOSFile(projectIDs[i]))
         if (projectConfig) {
-            updateAuthoritiesMap[projectConfig.update_authority] = projectConfig
+            updateAuthoritiesMap[projectConfig.owner_public_key] = projectConfig
         }
     }
     Object.keys(updateAuthoritiesMap).forEach(function (key) {
         projects.push({
+            ownerPublicKey: key,
             isHolder: updateAuthoritiesMap[key].is_holder,
             projectFiendlyName: updateAuthoritiesMap[key].project_friendly_name,
+            projectWebsite: updateAuthoritiesMap[key].project_website,
             updateAuthority: updateAuthoritiesMap[key].update_authority,
             primaryRoyaltiesAccount: updateAuthoritiesMap[key].royalty_wallet_id,
             discordWebhook: updateAuthoritiesMap[key].discord_webhook,
@@ -86,10 +88,12 @@ for (var i = 0; i < allProjects.length; i++) {
     // combine base configuration with project configuration
     var trackerConfig = {
         rpc: config.rpc,
+        ownerPublicKey: allProjects[i].ownerPublicKey,
         isHolder: allProjects[i].isHolder,
         updateAuthority: allProjects[i].updateAuthority,
         primaryRoyaltiesAccount: allProjects[i].primaryRoyaltiesAccount,
         projectFiendlyName: allProjects[i].projectFiendlyName,
+        projectWebsite: allProjects[i].projectWebsite,
         marketPlaceInfos: config.marketPlaceInfos,
         cos: config.cos
     }

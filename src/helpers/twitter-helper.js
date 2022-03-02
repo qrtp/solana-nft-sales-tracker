@@ -43,10 +43,22 @@ export default class TwitterHelper {
      * @returns
      */
     formatTweet(saleInfo) {
+        var action = "purchased"
+        if (saleInfo.seller == this.config.primaryRoyaltiesAccount) {
+            action = "minted"
+        }
+        var projectTag = ""
+        if (this.config.isHolder && this.config.projectFiendlyName) {
+            projectTag = `#${this.config.projectFiendlyName.replaceAll(" ", "")} `
+        }
+        var projectWebsite = ""
+        if (this.config.projectWebsite) {
+            projectWebsite = `at ${this.config.projectWebsite} `
+        }
         return {
-            status: `${saleInfo.nftInfo.id} purchased for ${saleInfo.saleAmount} SOL 🚀 ➡️ https://solscan.io/tx/${saleInfo.txSignature}
+            status: `${saleInfo.nftInfo.id} ${action} for ${saleInfo.saleAmount} SOL ${projectWebsite}🚀 ➡️ https://solscan.io/tx/${saleInfo.txSignature}
   
-#Solana #NFT
+${projectTag}#Solana #NFT
     `
         };
     }
