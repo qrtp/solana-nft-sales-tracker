@@ -8,7 +8,12 @@ import DiscordHelper from './helpers/discord-helper.js';
 import { getMetadata } from './helpers/metadata-helpers.js';
 import TwitterHelper from './helpers/twitter-helper.js';
 
+// default solscan query endpoint
 var solscanURL = "https://public-api.solscan.io"
+
+// create HTTP client with 60 second timeout
+const axiosInstance = axios.create()
+axiosInstance.defaults.timeout = 60000
 
 export default class SaleTracker {
     constructor(config, outputType) {
@@ -36,11 +41,12 @@ export default class SaleTracker {
             return
         }
 
-        // retrieve current number of sales
+        // retrieve current number of sales and update in config file
         let salesFile = await me._readOrCreateSalesFile()
+        await me._updateConfigFile(salesFile)
+        console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}, current=${salesFile.sales.length}`)
 
         // retrieve last known transaction signature from audit file
-        console.log(`checking sales in account ${me.config.primaryRoyaltiesAccount} for update authority ${me.config.updateAuthority}, current=${salesFile.sales.length}`)
         let lockFile = await me._readOrCreateAuditFile();
         let lastProcessedSignature = _.last(lockFile.processedSignatures);
         console.log("Starting transaction processing at signature: " + lastProcessedSignature);
@@ -216,9 +222,35 @@ export default class SaleTracker {
         }
         var fileContents = JSON.stringify(file)
         if (me.config.cos) {
-            return await writeCOSFile(me.salesFilePath, fileContents)
+            await writeCOSFile(me.salesFilePath, fileContents)
+        } else {
+            fs.writeFileSync(me.salesFilePath, fileContents);
         }
-        fs.writeFileSync(me.salesFilePath, fileContents);
+
+        // update sales count in the config file
+        me._updateConfigFile(file)
+    }
+
+    // update main config file with sales count
+    async _updateConfigFile(salesFile) {
+        const me = this;
+        if (me.config.cos && me.config.configFilePath) {
+            var projectConfig = JSON.parse(await readCOSFile(me.config.configFilePath))
+            if (projectConfig) {
+
+                // check if count changed
+                if (projectConfig.sales == salesFile.sales.length) {
+                    console.log(`sales count=${projectConfig.sales} already updated in config`)
+                    return
+                }
+
+                // write modified count
+                projectConfig.sales = salesFile.sales.length
+                var updatedConfig = JSON.stringify(projectConfig)
+                console.log(`updating project config sales count=${projectConfig.sales} at ${me.config.configFilePath}`)
+                await writeCOSFile(me.config.configFilePath, updatedConfig)
+            }
+        }
     }
 
     /**
@@ -304,7 +336,7 @@ export default class SaleTracker {
                 }
                 console.log("Calling", url)
                 try {
-                    let res = yield axios.get(url)
+                    let res = yield axiosInstance.get(url)
                     if (res.data && res.data.length == 0) {
                         console.log("no transactions remaining")
                         break
@@ -351,7 +383,7 @@ export default class SaleTracker {
             let url = solscanURL + '/transaction/' + signature
             console.log("Calling", url)
             try {
-                let res = yield axios.get(url)
+                let res = yield axiosInstance.get(url)
                 for (let acct of res.data.inputAccount) {
                     tx["transaction"]["message"]["accountKeys"].push(acct.account)
                     tx["meta"]["preBalances"].push(acct.preBalance)
@@ -415,7 +447,7 @@ export default class SaleTracker {
 
                 // retrieve sales information for the NFT transaction
                 let arWeaveUri = _.get(mintMetaData, `data.uri`);
-                let arWeaveInfo = yield axios.get(arWeaveUri);
+                let arWeaveInfo = yield axiosInstance.get(arWeaveUri);
                 return {
                     time: transactionInfo === null || transactionInfo === void 0 ? void 0 : transactionInfo.blockTime,
                     txSignature: signature,

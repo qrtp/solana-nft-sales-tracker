@@ -10,6 +10,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import axios from 'axios';
 import Twitter from 'twitter';
 
+// create HTTP client with 60 second timeout
+const axiosInstance = axios.create()
+axiosInstance.defaults.timeout = 60000
+
 /**
  * Twitter uses 3 legged oAuth for certain endpoints.
  * You can get the oauth key and secret by simulating the API calls yourselves.
@@ -33,7 +37,7 @@ export default class TwitterHelper {
      * @returns
      */
     getBase64(url) {
-        return axios.get(url, {
+        return axiosInstance.get(url, {
             responseType: 'arraybuffer'
         }).then(response => Buffer.from(response.data, 'binary').toString('base64'));
     }

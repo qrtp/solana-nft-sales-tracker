@@ -34,6 +34,7 @@ async function getAllProjects() {
         //read the config
         var projectConfig = JSON.parse(await readCOSFile(projectIDs[i]))
         if (projectConfig) {
+            projectConfig.configFilePath = projectIDs[i]
             updateAuthoritiesMap[projectConfig.owner_public_key] = projectConfig
         }
     }
@@ -41,6 +42,7 @@ async function getAllProjects() {
         projects.push({
             ownerPublicKey: key,
             isHolder: updateAuthoritiesMap[key].is_holder,
+            configFilePath: updateAuthoritiesMap[key].configFilePath,
             projectFiendlyName: updateAuthoritiesMap[key].project_friendly_name,
             projectWebsite: updateAuthoritiesMap[key].project_website,
             updateAuthority: updateAuthoritiesMap[key].update_authority,
@@ -90,6 +92,7 @@ for (var i = 0; i < allProjects.length; i++) {
         rpc: config.rpc,
         ownerPublicKey: allProjects[i].ownerPublicKey,
         isHolder: allProjects[i].isHolder,
+        configFilePath: allProjects[i].configFilePath,
         updateAuthority: allProjects[i].updateAuthority,
         primaryRoyaltiesAccount: allProjects[i].primaryRoyaltiesAccount,
         projectFiendlyName: allProjects[i].projectFiendlyName,

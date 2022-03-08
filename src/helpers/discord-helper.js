@@ -8,6 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import axios from 'axios';
+
+// create HTTP client with 60 second timeout
+const axiosInstance = axios.create()
+axiosInstance.defaults.timeout = 60000
+
 /**
  * Just setup a new channel in discord, then go to settings, integrations and created a new webhook
  * Set the webhook URL in the config.json.
@@ -65,7 +70,7 @@ export default class DiscordHelper {
         return __awaiter(this, void 0, void 0, function* () {
             const me = this;
             if (this.config.discord.webhookUrl) {
-                yield axios.post(this.config.discord.webhookUrl, me._createWebhookData(saleInfo));
+                yield axiosInstance.post(this.config.discord.webhookUrl, me._createWebhookData(saleInfo));
             }
         });
     }
