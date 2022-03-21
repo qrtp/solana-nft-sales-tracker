@@ -61,14 +61,19 @@ export default class SaleTracker {
         console.log("Got transactions", txs.length);
         for (let tx of txs) {
             try {
+
+                // update the lock file first, as sometimes sales rendering can result
+                // in an OOM for a very large metadata. Opt not to process the entry
+                // again if this condition occurs.
+                await me._updateLockFile(tx);
+
+                // render all of the sales outputs
                 let saleInfo = await me._parseTransactionForSaleInfo(tx);
                 if (saleInfo) {
                     await me._renderOutputs(saleInfo)
                 }
             } catch (e) {
                 console.log("error parsing transaction", e)
-            } finally {
-                await me._updateLockFile(tx);
             }
         }
         console.log("Done");

@@ -69,7 +69,7 @@ export default class DiscordHelper {
     send(saleInfo) {
         return __awaiter(this, void 0, void 0, function* () {
             const me = this;
-            if (this.config.discord.webhookUrl) {
+            if (this.config.discord && this.config.discord.webhookUrl) {
                 yield axiosInstance.post(this.config.discord.webhookUrl, me._createWebhookData(saleInfo));
             }
         });

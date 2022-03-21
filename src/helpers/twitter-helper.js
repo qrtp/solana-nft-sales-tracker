@@ -11,6 +11,7 @@ import axios from 'axios';
 import Twitter from 'twitter';
 
 // create HTTP client with 60 second timeout
+const maxImageSize = 5242000
 const axiosInstance = axios.create()
 axiosInstance.defaults.timeout = 60000
 
@@ -76,6 +77,10 @@ ${projectTag}#Solana #NFT
             if (me.client) {
                 let tweetInfo = me.formatTweet(saleInfo);
                 let image = yield me.getBase64(`${saleInfo.nftInfo.image}`);
+                if (image.length > maxImageSize) {
+                    console.log(`image ${saleInfo.nftInfo.image} too large for upload: ${image.length}`)
+                    return
+                }
                 let mediaUpload;
                 try {
                     mediaUpload = yield me.client.post('media/upload', { media_data: image });
