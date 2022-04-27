@@ -23,10 +23,35 @@ export default class SaleTracker {
             return
         }
 
+        // configuration values for sales tracking
         this.config = config;
-        this.auditFilePath = `./auditfile-${config.updateAuthority}-console.json`;
-        this.salesFilePath = `./sales-${config.updateAuthority}-console.json`;
-        this.outputType = outputType;
+        this.auditFilePath = `./sales/auditfile-${config.ownerPublicKey}.json`
+        this.salesFilePath = `./sales/records-${config.ownerPublicKey}.json`
+        this.outputType = outputType
+    }
+
+    /**
+     * Temporary method to migrate file paths
+     */
+    async migrateFiles() {
+        const me = this;
+
+        // retrieve data from old file paths
+        console.log(`checking migration status for project manager address ${me.config.ownerPublicKey}`)
+        var oldAuditFilePath = `./auditfile-${me.config.updateAuthority}-console.json`
+        var oldSalesFilePath = `./sales-${me.config.updateAuthority}-console.json`
+        var oldSalesFileContents = await readCOSFile(oldSalesFilePath)
+        var oldAuditFileContents = await readCOSFile(oldAuditFilePath)
+
+        // migrate sales and audit data if necessary
+        var newSalesFileContents = await readCOSFile(this.salesFilePath)
+        if (oldSalesFileContents && !newSalesFileContents) {
+            console.log(`migration required for update authority ${me.config.updateAuthority} to project manager address ${me.config.ownerPublicKey}`)
+            await writeCOSFile(this.salesFilePath, oldSalesFileContents)
+            await writeCOSFile(this.auditFilePath, oldAuditFileContents)
+        } else {
+            console.log(`migration not required for project manager address ${me.config.ownerPublicKey}`)
+        }
     }
 
     /**
@@ -40,6 +65,9 @@ export default class SaleTracker {
             console.log("invalid configuration")
             return
         }
+
+        // migrate if necessary
+        await this.migrateFiles()
 
         // retrieve current number of sales and update in config file
         let salesFile = await me._readOrCreateSalesFile()

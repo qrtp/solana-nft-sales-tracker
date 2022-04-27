@@ -11,7 +11,7 @@ import axios from 'axios';
 import Twitter from 'twitter';
 
 // create HTTP client with 60 second timeout
-const maxImageSize = 5242000
+const maxImageSize = 9999999
 const axiosInstance = axios.create()
 axiosInstance.defaults.timeout = 60000
 
